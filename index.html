@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dino Lens – Interactive Design Doc</title>
+<style>
+  html { font-size: clamp(11px, 1.55vh, 18px); }
+  body { margin: 0; height: 100vh; overflow: hidden; font-family: Georgia, serif; background: #f4efe4; color: #2b2b2b; }
+  main { box-sizing: border-box; height: 100vh; padding: 2vh 2vw; display: grid; gap: 1.5vh 2vw;
+         grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: minmax(0, 1fr) auto; }
+  .left { grid-column: 1; grid-row: 1; overflow: hidden; }
+  .right { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; min-height: 0; }
+  .bottom { grid-column: 1 / 3; grid-row: 2; }
+  h1 { margin: 0; font-size: 2.6rem; }
+  h2 { margin: 0 0 .6vh; font-size: 1.3rem; border-bottom: 2px solid #2b2b2b; padding-bottom: 2px; }
+  p { margin: .8vh 0; line-height: 1.35; }
+  .sub { color: #666; margin-top: 0; }
+  .cards { display: flex; gap: 8px; margin: 1.5vh 0; }
+  .card { flex: 1; padding: 8px 10px; border-radius: 8px; color: #fff; font-family: sans-serif; font-size: .9rem; }
+  .card b { display: block; font-size: .75rem; text-transform: uppercase; opacity: .8; }
+  .aud { background: #8e44ad; } .gen { background: #b0413e; } .plat { background: #34609c; }
+
+  /* Core loop */
+  .loop { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-family: sans-serif; margin-top: 1vh; }
+  .step { background: #fff3b0; border: 2px solid #2b2b2b; border-radius: 4px; padding: 1.4vh 4px; text-align: center;
+          font-size: .75rem; font-weight: bold; cursor: pointer; transition: transform .15s, background .15s; }
+  .step:hover { transform: translateY(-2px); }
+  .step.active { background: #ffd23f; box-shadow: 0 0 0 3px #e67e22; }
+  .step.sel { outline: 3px dashed #34609c; }
+  #stepInfo { min-height: 2.6em; font-style: italic; }
+
+  /* Demo */
+  #game { height: 57vh; width: auto; aspect-ratio: 760 / 420; border: 2px solid #2b2b2b; border-radius: 6px; cursor: none; display: block; }
+  .hud { display: flex; justify-content: space-between; align-items: center; font-family: sans-serif; font-size: .9rem; margin-top: .8vh; }
+  #msg { font-weight: bold; }
+  .album { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1vw; font-family: sans-serif; font-size: .85rem; }
+  .slot { display: flex; align-items: center; gap: 10px; border: 2px dashed #999; border-radius: 6px; padding: 5px; background: #fff; }
+  .slot canvas { height: 12vh; width: auto; aspect-ratio: 16 / 11; background: #ddd; border-radius: 4px; }
+  .slot.done { border-style: solid; border-color: #2b2b2b; }
+  .stars { color: #e6a700; font-size: 1.2rem; }
+</style>
+</head>
+<body>
+<main>
+  <section class="left">
+    <h1>Dino Lens</h1>
+    <p class="sub">A VR photography adventure in prehistoric times</p>
+    <div class="cards">
+      <div class="card aud"><b>Audience</b>Female, 60+, loves photography</div>
+      <div class="card gen"><b>Genre</b>Adventure – Dinosaurs</div>
+      <div class="card plat"><b>Platform</b>VR – Oculus Quest</div>
+    </div>
+    <p>You jump into a time machine and travel to prehistoric times. You are in love with dinosaurs
+       and you want to take a picture of every single one of them. Our audience is niche:
+       older people who are interested in old things.</p>
+
+    <h2 style="margin-top:2.5vh">Core Loop</h2>
+    <p>Click a step to read about it. While you play, the active step lights up.</p>
+    <div class="loop">
+      <div class="step" data-s="explore">EXPLORE THE WORLD</div>
+      <div class="step" data-s="discover">DISCOVER DINOS</div>
+      <div class="step" data-s="sneak">SNEAK &amp; OBSERVE</div>
+      <div class="step" data-s="photo">TAKE A PHOTO</div>
+      <div class="step" data-s="collect" style="grid-column: 4">ADD TO COLLECTION</div>
+      <div class="step" data-s="complete" style="grid-column: 4">COMPLETE YOUR COLLECTION</div>
+    </div>
+    <p id="stepInfo"></p>
+  </section>
+
+  <section class="right">
+    <h2>Try It: Sneak &amp; Photo</h2>
+    <p>Pick a biome, learn the controls, then aim with the mouse. <b>Move slowly</b> near dinos and <b>click</b> to shoot.
+       Centered shots of calm dinos earn more stars.</p>
+    <canvas id="game" width="760" height="420"></canvas>
+    <div class="hud"><span id="msg">Choose a biome on the planet…</span>
+      <span><button id="travel">🌍 Change biome</button> &nbsp;<span id="count">0 / 4 collected</span></span></div>
+  </section>
+
+  <section class="bottom">
+    <h2>Album</h2>
+    <div class="album" id="album"></div>
+  </section>
+</main>
+
+<script>
+// ---------- Core loop text ----------
+const stepText = {
+  explore:  "Walk freely through prehistoric biomes. In VR you look around naturally, so there is no rush.",
+  discover: "Spot a dinosaur in the distance. Each species lives in a specific biome.",
+  sneak:    "Approach without being noticed. Fast movement up close alarms the dinosaur; some species are shyer than others.",
+  photo:    "Frame the dinosaur and press the shutter. A centered shot of a calm dino earns more stars.",
+  collect:  "The photo goes into your album. You can retake it later to improve your best shot.",
+  complete: "Fill every slot of the album to complete the collection. Then travel to a new biome."
+};
+const steps = document.querySelectorAll('.step');
+steps.forEach(el => el.onclick = () => {
+  steps.forEach(s => s.classList.remove('sel'));
+  el.classList.add('sel');
+  document.getElementById('stepInfo').textContent = stepText[el.dataset.s];
+});
+function setActive(s) { steps.forEach(el => el.classList.toggle('active', el.dataset.s === s)); }
+
+// ---------- Species & album ----------
+const species = [
+  { name: 'Brachiosaurus', color: '#7a9e7e', size: 1.3, shy: 0.5, speed: 0.5, neck: true },
+  { name: 'Triceratops',   color: '#c08552', size: 1.0, shy: 0.8, speed: 0.7, horns: true },
+  { name: 'Stegosaurus',   color: '#8e7cc3', size: 1.1, shy: 1.0, speed: 0.6, plates: true },
+  { name: 'Velociraptor',  color: '#d4a017', size: 0.7, shy: 1.8, speed: 1.3 },
+];
+const album = {}; // name -> best stars
+const albumEl = document.getElementById('album');
+species.forEach(sp => {
+  albumEl.insertAdjacentHTML('beforeend',
+    `<div class="slot" id="slot-${sp.name}"><canvas width="160" height="110"></canvas>
+     <div><div class="name">???</div><div class="stars">☆☆☆</div></div></div>`);
+});
+
+// ---------- Game ----------
+const cv = document.getElementById('game'), ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height, FW = 160, FH = 110, NOTICE = 180;
+let mouse = null, last = null, dino = null, flash = 0, phase = 'explore', phaseTimer = 0, respawn = 60;
+const msg = t => document.getElementById('msg').textContent = t;
+
+const decor = Array.from({ length: 25 }, () => ({
+  x: Math.random() * W, y: Math.random() * H, r: 6 + Math.random() * 14, rock: Math.random() < 0.4 }));
+
+function spawn() {
+  const left = species.filter(s => !album[s.name]);
+  const sp = (left.length ? left : species)[Math.floor(Math.random() * (left.length || species.length))];
+  const fromLeft = Math.random() < 0.5;
+  dino = { sp, x: fromLeft ? -60 : W + 60, y: 120 + Math.random() * (H - 200),
+           tx: 150 + Math.random() * (W - 300), ty: 100 + Math.random() * (H - 180),
+           dir: fromLeft ? 1 : -1, aware: 0, pause: 0, leaving: false, fleeing: false };
+}
+
+cv.addEventListener('mousemove', e => {
+  const r = cv.getBoundingClientRect();
+  mouse = { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height };
+});
+cv.addEventListener('mouseleave', () => { mouse = null; last = null; });
+let shootRequested = false;
+cv.addEventListener('click', () => {
+  if (!mouse) return;
+  if (scene === 'globe' && hover) { biome = hover; scene = 'onboard'; msg('Learn the controls…'); }
+  else if (scene === 'onboard') { scene = 'play'; dino = null; respawn = 60; msg('Explore the ' + biome.name + '…'); }
+  else if (scene === 'play') shootRequested = true;
+});
+document.getElementById('travel').onclick = () => { scene = 'globe'; dino = null; msg('Choose a biome on the planet…'); };
+
+function update() {
+  if (!dino) { if (--respawn <= 0) spawn(); return; }
+  const d = dino;
+  // movement
+  if (d.fleeing || d.leaving) {
+    d.x += d.dir * d.sp.speed * (d.fleeing ? 7 : 2);
+    if (d.x < -100 || d.x > W + 100) { dino = null; respawn = 90; }
+  } else if (d.pause > 0) d.pause--;
+  else {
+    const dx = d.tx - d.x, dy = d.ty - d.y, dist = Math.hypot(dx, dy);
+    if (dist < 4) { d.pause = 60 + Math.random() * 150;
+      d.tx = 120 + Math.random() * (W - 240); d.ty = 100 + Math.random() * (H - 180); }
+    else { d.x += dx / dist * d.sp.speed; d.y += dy / dist * d.sp.speed; d.dir = dx >= 0 ? 1 : -1; }
+  }
+  // awareness: fast movement near the dino raises it, distance lets it calm down
+  const speed = mouse && last ? Math.hypot(mouse.x - last.x, mouse.y - last.y) : 0;
+  const near = mouse ? Math.hypot(mouse.x - d.x, mouse.y - d.y) : Infinity;
+  if (!d.fleeing && !d.leaving) {
+    if (near < NOTICE) d.aware += (Math.max(0, speed - 2) * 0.9 + (near < 50 ? 0.6 : 0)) * d.sp.shy;
+    d.aware = Math.max(0, Math.min(100, d.aware - 0.35));
+    if (d.aware >= 100) { d.fleeing = true; d.dir = d.x < W / 2 ? -1 : 1; msg(`The ${d.sp.name} noticed you and ran away!`); }
+  }
+  // which loop step are we in?
+  if (phaseTimer > 0) phaseTimer--;
+  else if (Object.keys(album).length === species.length) phase = 'complete';
+  else phase = near < NOTICE && !d.fleeing ? 'sneak' : 'discover';
+}
+
+function drawDino(d) {
+  const s = d.sp;
+  ctx.save(); ctx.translate(d.x, d.y);
+  ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(0, 36 * s.size, 45 * s.size, 8, 0, 0, 7); ctx.fill();
+  ctx.scale(d.dir * s.size, s.size);
+  ctx.fillStyle = s.color; ctx.strokeStyle = '#2b2b2b'; ctx.lineWidth = 2;
+  if (s.plates) for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(i * 13 - 7, -16); ctx.lineTo(i * 13, -34); ctx.lineTo(i * 13 + 7, -16); ctx.fill(); ctx.stroke(); }
+  ctx.fillRect(-22, 10, 9, 26); ctx.strokeRect(-22, 10, 9, 26); ctx.fillRect(14, 10, 9, 26); ctx.strokeRect(14, 10, 9, 26);
+  ctx.beginPath(); ctx.moveTo(-34, -6); ctx.lineTo(-80, 4); ctx.lineTo(-34, 10); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(0, 0, 40, 20, 0, 0, 7); ctx.fill(); ctx.stroke();
+  const hx = s.neck ? 48 : 42, hy = s.neck ? -55 : -16;
+  if (s.neck) { ctx.lineWidth = 14; ctx.beginPath(); ctx.moveTo(28, -8); ctx.lineTo(hx - 4, hy + 6); ctx.stroke();
+    ctx.strokeStyle = s.color; ctx.lineWidth = 10; ctx.stroke(); ctx.strokeStyle = '#2b2b2b'; ctx.lineWidth = 2; }
+  ctx.beginPath(); ctx.ellipse(hx, hy, 15, 11, 0, 0, 7); ctx.fill(); ctx.stroke();
+  if (s.horns) { ctx.fillStyle = '#f4efe4'; ctx.beginPath(); ctx.moveTo(hx + 4, hy - 8); ctx.lineTo(hx + 20, hy - 22); ctx.lineTo(hx + 10, hy - 6); ctx.fill(); ctx.stroke(); }
+  ctx.fillStyle = '#2b2b2b'; ctx.beginPath(); ctx.arc(hx + 6, hy - 3, 2.5, 0, 7); ctx.fill();
+  ctx.restore();
+  if (d.aware > 0 && !d.leaving) { // awareness meter
+    const y = d.y - 75 * s.size;
+    ctx.fillStyle = '#fff'; ctx.fillRect(d.x - 25, y, 50, 6);
+    ctx.fillStyle = d.aware > 60 ? '#d63031' : '#e6a700'; ctx.fillRect(d.x - 25, y, d.aware / 2, 6);
+    if (d.aware > 60) { ctx.fillStyle = '#d63031'; ctx.font = 'bold 22px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('!', d.x, y - 6); }
+  }
+}
+
+function drawWorld() {
+  ctx.fillStyle = biome.ground; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = biome.sky; ctx.fillRect(0, 0, W, 70);
+  decor.forEach(o => { ctx.fillStyle = o.rock ? '#a39e93' : biome.plant;
+    ctx.beginPath(); o.rock ? ctx.ellipse(o.x, o.y, o.r, o.r * .6, 0, 0, 7) : ctx.arc(o.x, o.y, o.r, 0, 7); ctx.fill(); });
+  if (dino) drawDino(dino);
+}
+
+function shoot() {
+  const fx = mouse.x - FW / 2, fy = mouse.y - FH / 2;
+  flash = 10; kickT = KICK; phase = 'photo'; phaseTimer = 40;
+  const d = dino;
+  if (!d || d.fleeing || d.leaving || d.x < fx || d.x > fx + FW || d.y < fy || d.y > fy + FH) {
+    msg('Nothing in the frame. Try again!'); if (d && !d.fleeing) d.aware += 15; return;
+  }
+  const centered = Math.hypot(d.x - mouse.x, d.y - mouse.y) < 25, calm = d.aware < 40;
+  const stars = 1 + centered + calm;
+  const name = d.sp.name, best = album[name] || 0;
+  msg(`${name}: ${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}` +
+      (centered ? '' : ' · try centering it') + (calm ? '' : ' · it was nervous'));
+  if (stars > best) {
+    album[name] = stars;
+    const slot = document.getElementById('slot-' + name);
+    slot.classList.add('done');
+    slot.querySelector('canvas').getContext('2d').drawImage(cv, fx, fy, FW, FH, 0, 0, FW, FH);
+    slot.querySelector('.name').textContent = name;
+    slot.querySelector('.stars').textContent = '★'.repeat(stars) + '☆'.repeat(3 - stars);
+    document.getElementById('count').textContent = `${Object.keys(album).length} / ${species.length} collected`;
+    setTimeout(() => { phase = 'collect'; phaseTimer = 70; }, 600);
+    if (Object.keys(album).length === species.length) setTimeout(() => msg('Album complete! Keep improving your stars.'), 1500);
+  }
+  d.leaving = true; d.dir = d.x < W / 2 ? -1 : 1; // dino walks off, the next one comes
+}
+
+function drawViewfinder() {
+  const x = mouse.x - FW / 2, y = mouse.y - FH / 2, c = 18;
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+  [[x, y, 1, 1], [x + FW, y, -1, 1], [x, y + FH, 1, -1], [x + FW, y + FH, -1, -1]].forEach(([px, py, sx, sy]) => {
+    ctx.beginPath(); ctx.moveTo(px + sx * c, py); ctx.lineTo(px, py); ctx.lineTo(px, py + sy * c); ctx.stroke(); });
+  ctx.fillStyle = '#d63031'; ctx.beginPath(); ctx.arc(x + FW - 34, y + 12, 4, 0, 7); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.font = '11px sans-serif'; ctx.textAlign = 'left';
+  ctx.fillText('REC', x + FW - 27, y + 16); ctx.fillText('10.11.2026', x + 6, y + FH - 6);
+  ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 3, 0, 7); ctx.fill();
+}
+
+// ---------- VR controllers ----------
+function drawController(x, y, angle, trigger) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
+  ctx.strokeStyle = '#1e1e1e'; ctx.lineWidth = 9;            // tracking ring
+  ctx.beginPath(); ctx.arc(0, -52, 26, 0, 7); ctx.stroke();
+  ctx.strokeStyle = '#555'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.fillStyle = '#2d2d2d';                                  // grip
+  ctx.beginPath(); ctx.roundRect(-16, -34, 32, 90, 14); ctx.fill();
+  ctx.fillStyle = trigger ? '#ffd23f' : '#555';               // trigger
+  ctx.beginPath(); ctx.roundRect(-7, -22, 14, 18, 5); ctx.fill();
+  ctx.fillStyle = '#777'; ctx.beginPath(); ctx.arc(0, 14, 6, 0, 7); ctx.fill(); // thumbstick
+  ctx.restore();
+}
+const KICK = 45; let kickT = 0;
+function drawHands() {
+  // left hand: rises to mid-screen, presses the trigger, then returns (KICK frames total)
+  const e = KICK - kickT;
+  const k = kickT <= 0 ? 0 : e < 12 ? 1 - (1 - e / 12) ** 2 : e < 30 ? 1 : 1 - (e - 30) / (KICK - 30);
+  if (kickT > 0) kickT--;
+  drawController(70 + k * 90, H + 20 - k * (H / 2 - 20), 0.35 - k * 0.35, e >= 14 && e < 28);
+  if (mouse) drawController(Math.min(W - 40, mouse.x + 90), Math.min(H + 30, mouse.y + 170), -0.4, false);
+}
+
+// ---------- Planet (biome select) ----------
+const biomes = [
+  { name: 'Jurassic Jungle',   ox: -70, oy: -55, rx: 60, ry: 42, ground: '#7fb069', sky: '#a7cf8a', plant: '#3f7d3a' },
+  { name: 'Cretaceous Plains', ox: 65,  oy: -45, rx: 52, ry: 46, ground: '#d9b779', sky: '#ecd3a0', plant: '#9c8a5a' },
+  { name: 'Misty Swamp',       ox: -45, oy: 65,  rx: 62, ry: 36, ground: '#6f8f6a', sky: '#8fa889', plant: '#40583d' },
+  { name: 'Volcanic Valley',   ox: 75,  oy: 70,  rx: 46, ry: 36, ground: '#a07e6c', sky: '#c49a84', plant: '#5a4038' },
+];
+const stars = Array.from({ length: 70 }, () => [Math.random() * W, Math.random() * H, Math.random() * 1.6]);
+let scene = 'globe', biome = null, hover = null, t = 0;
+
+function drawGlobe() {
+  const cx = W / 2, cy = H / 2 + 5, R = 165;
+  ctx.fillStyle = '#0f1630'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#fff'; stars.forEach(([x, y, r]) => { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); });
+  ctx.fillStyle = '#2f6fb0'; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.fill();
+  hover = null;
+  biomes.forEach(b => {
+    const bx = cx + b.ox, by = cy + b.oy + Math.sin(t / 40 + b.ox) * 2;
+    const inside = mouse && ((mouse.x - bx) / b.rx) ** 2 + ((mouse.y - by) / b.ry) ** 2 < 1;
+    if (inside) hover = b;
+    ctx.fillStyle = b.ground; ctx.strokeStyle = inside ? '#ffd23f' : 'rgba(0,0,0,.3)'; ctx.lineWidth = inside ? 4 : 2;
+    ctx.beginPath(); ctx.ellipse(bx, by, b.rx, b.ry, 0.3, 0, 7); ctx.fill(); ctx.stroke();
+  });
+  ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.beginPath(); ctx.arc(cx - 50, cy - 60, 70, 0, 7); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = 'bold 20px Georgia';
+  ctx.fillText(hover ? hover.name : 'Point at a biome and pull the trigger', W / 2, 32);
+  if (mouse) { // laser pointer from the right controller
+    const hx = Math.min(W - 40, mouse.x + 90), hy = Math.min(H + 30, mouse.y + 170);
+    ctx.strokeStyle = hover ? '#ffd23f' : '#7fdcff'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(hx - 10, hy - 30); ctx.lineTo(mouse.x, mouse.y); ctx.stroke();
+    ctx.fillStyle = ctx.strokeStyle; ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 5, 0, 7); ctx.fill();
+  }
+  drawHands();
+}
+
+// ---------- VR onboarding ----------
+function drawOnboarding() {
+  ctx.fillStyle = '#1b2240'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+  ctx.font = 'bold 24px Georgia'; ctx.fillText(`Welcome to the ${biome.name}!`, W / 2, 50);
+  const bob = Math.sin(t / 20) * 10, pull = Math.floor(t / 45) % 2 === 0;
+  drawController(W / 2 - 170, 230 - (pull ? 12 : 0), 0.2 - (pull ? 0.15 : 0), pull);
+  drawController(W / 2 + 170 + bob, 230 - bob, -0.2, false);
+  ctx.font = '15px sans-serif';
+  ctx.fillText('LEFT HAND = SHUTTER', W / 2 - 170, 320); ctx.fillText('RIGHT HAND = AIM', W / 2 + 170, 320);
+  ctx.textAlign = 'left'; ctx.font = '16px sans-serif';
+  ['1. Move your right hand to aim the camera.',
+   '2. Pull the left trigger to take a photo.',
+   '3. Move slowly. Dinosaurs notice sudden moves.'].forEach((s, i) => ctx.fillText(s, W / 2 - 150, 120 + i * 30));
+  ctx.textAlign = 'center'; ctx.fillStyle = Math.floor(t / 30) % 2 ? '#ffd23f' : '#fff';
+  ctx.font = 'bold 18px sans-serif'; ctx.fillText('Pull the trigger (click) to start', W / 2, 385);
+}
+
+function loop() {
+  t++;
+  if (scene === 'globe') { drawGlobe(); setActive('explore'); }
+  else if (scene === 'onboard') { drawOnboarding(); setActive('explore'); }
+  else {
+    update();
+    drawWorld();
+    if (shootRequested) { shootRequested = false; shoot(); }
+    if (mouse) drawViewfinder();
+    drawHands();
+    if (flash > 0) { ctx.fillStyle = `rgba(255,255,255,${flash / 10})`; ctx.fillRect(0, 0, W, H); flash--; }
+    setActive(dino ? phase : 'explore');
+  }
+  shootRequested = false;
+  last = mouse && { ...mouse };
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
